@@ -28,18 +28,48 @@ class Task():
 
     def get_reward(self):
         """Uses current pose of sim to return reward."""
-        reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
+        # reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
+        reward = 5. - np.multiply([0.2, 0.2, .6], abs(self.sim.pose[:3] - self.target_pos)).sum()
+        # reward = 1. - np.multiply([0.2, 0.2, 1.], abs(self.sim.pose[:3] - self.target_pos)).mean()
         return reward
 
     def step(self, rotor_speeds):
         """Uses action to obtain next state, reward, done."""
+        # reward = 0
+        # pose_all = []
+        # for _ in range(self.action_repeat):
+        #     done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
+        #     reward += self.get_reward()
+        #     pose_all.append(self.sim.pose)
+        # next_state = np.concatenate(pose_all)
+        # return next_state, reward, done
         reward = 0
         pose_all = []
+        # Whether reached the target area (i.e. getting sufficiently close to the target position)
+        complete = False
+        bonus = 0
+        # Whether the episode ended
+        done = False
         for _ in range(self.action_repeat):
-            done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
-            reward += self.get_reward() 
+            done = self.sim.next_timestep(rotor_speeds)  # update the sim pose and velocities
+            rwd = self.get_reward()
+            dist = np.mean(abs(self.sim.pose[:3] - self.target_pos))
+            if dist < 2:
+                complete = True
+                bonus = max(bonus, 5000 / (dist + 0.5))
+            reward += rwd
             pose_all.append(self.sim.pose)
+
         next_state = np.concatenate(pose_all)
+
+        # Bonus for getting close enough to the target position
+        if complete:
+            done = True
+            reward += bonus
+        # Punish flying out of boundary
+        elif done and self.sim.time < self.sim.runtime:
+            reward -= 200
+
         return next_state, reward, done
 
     def reset(self):
